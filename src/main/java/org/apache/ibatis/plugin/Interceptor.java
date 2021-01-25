@@ -29,6 +29,7 @@ public interface Interceptor {
   }
 
   default void setProperties(Properties properties) {
+    System.out.println();
     // NOP
   }
 

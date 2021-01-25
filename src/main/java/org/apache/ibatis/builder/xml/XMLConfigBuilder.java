@@ -103,11 +103,16 @@ public class XMLConfigBuilder extends BaseBuilder {
   private void parseConfiguration(XNode root) {
     try {
       // issue #117 read properties first
+      // 处理<properties/>标签，配置相关属性
       propertiesElement(root.evalNode("properties"));
+      // 处理<settings/>标签，配置相关系统属性
       Properties settings = settingsAsProperties(root.evalNode("settings"));
       loadCustomVfs(settings);
+      // 使用系统属性，设置日志实现类
       loadCustomLogImpl(settings);
+      // 处理<typeAliases/>标签，注册别名
       typeAliasesElement(root.evalNode("typeAliases"));
+      // 处理<plugins/>标签，注册插件
       pluginElement(root.evalNode("plugins"));
       objectFactoryElement(root.evalNode("objectFactory"));
       objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"));
@@ -127,8 +132,9 @@ public class XMLConfigBuilder extends BaseBuilder {
     if (context == null) {
       return new Properties();
     }
+    // 处理子所有<settings/>的子标签，通过name、value构造Properties对象
     Properties props = context.getChildrenAsProperties();
-    // Check that all settings are known to the configuration class
+    // Check that all settings are known to the configuration class（保证所有<settings/>子标签配置的属性，都能在全局配置中找到相应的set方法）
     MetaClass metaConfig = MetaClass.forClass(Configuration.class, localReflectorFactory);
     for (Object key : props.keySet()) {
       if (!metaConfig.hasSetter(String.valueOf(key))) {
@@ -161,16 +167,20 @@ public class XMLConfigBuilder extends BaseBuilder {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
         if ("package".equals(child.getName())) {
+          //批量注册别名
           String typeAliasPackage = child.getStringAttribute("name");
           configuration.getTypeAliasRegistry().registerAliases(typeAliasPackage);
         } else {
+          //单个注册别名，type属性标明类的全限定名，alias属性标明别名
           String alias = child.getStringAttribute("alias");
           String type = child.getStringAttribute("type");
           try {
             Class<?> clazz = Resources.classForName(type);
             if (alias == null) {
+              //当alias属性为空，会尝试去获取类的Alias注解获取别名，如果Alias注解为空，则用类简单名单的全小写作为别名
               typeAliasRegistry.registerAlias(clazz);
             } else {
+              //指定了别名，直接注册
               typeAliasRegistry.registerAlias(alias, clazz);
             }
           } catch (ClassNotFoundException e) {
@@ -181,13 +191,19 @@ public class XMLConfigBuilder extends BaseBuilder {
     }
   }
 
+  //<plugins/>
   private void pluginElement(XNode parent) throws Exception {
     if (parent != null) {
+      //处理<plugins/>子标签<plugin/>
       for (XNode child : parent.getChildren()) {
         String interceptor = child.getStringAttribute("interceptor");
+        //处理<plugin/>子标签，获取属性配置
         Properties properties = child.getChildrenAsProperties();
+        //通过所配置的插件类路径，获取Class对象，使用无参构造器，创建新对象
         Interceptor interceptorInstance = (Interceptor) resolveClass(interceptor).getDeclaredConstructor().newInstance();
+        //将标签配置的属性注入
         interceptorInstance.setProperties(properties);
+        //所有的插件，都会以拦截器的名义（aop思想），放在全局配置的interceptorChain域中的ArrayList结构中
         configuration.addInterceptor(interceptorInstance);
       }
     }
@@ -220,23 +236,30 @@ public class XMLConfigBuilder extends BaseBuilder {
   }
 
   private void propertiesElement(XNode context) throws Exception {
+    //当<properties/>标签不为空时
     if (context != null) {
+      //获取所有子标签<property/>，并根据name、value属性进行创建Properties对象
       Properties defaults = context.getChildrenAsProperties();
       String resource = context.getStringAttribute("resource");
       String url = context.getStringAttribute("url");
+      //url与resource互斥，只能二选其一
       if (resource != null && url != null) {
         throw new BuilderException("The properties element cannot specify both a URL and a resource based property file reference.  Please specify one or the other.");
       }
       if (resource != null) {
+        //通过配置文件加载属性，比如application.properties
         defaults.putAll(Resources.getResourceAsProperties(resource));
       } else if (url != null) {
+        //通过url记在属性
         defaults.putAll(Resources.getUrlAsProperties(url));
       }
+      //将configuration原有属性合并
       Properties vars = configuration.getVariables();
       if (vars != null) {
         defaults.putAll(vars);
       }
       parser.setVariables(defaults);
+      //所有的属性最后都会并入全局配置的variables域
       configuration.setVariables(defaults);
     }
   }

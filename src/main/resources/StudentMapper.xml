@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kingdon.dao.StudentDao" >
+  <resultMap id="student" type="student">
+    <id property="id" column="id"/>
+    <result property="fatherName" column="father_name" typeHandler="nametypehandler"/>
+  </resultMap>
+
+  <resultMap id="studentMap" type="map">
+    <id property="id" column="id" javaType="_double"/>
+    <result property="fatherName" column="father_name" typeHandler="nametypehandler"/>
+  </resultMap>
+
+  <resultMap id="studentConstructor" type="student">
+    <!--
+      ① mybatis会根据javaType去定位构造器，以下述为例子，在不指定name的情况下，会去寻找入参类型顺序为int、String、String类型的构造器
+      ② 在调用构造器函数时，入参依次传入id、name、father_name查询出来的值，并不会去管构造器的入参名称，如果构造器定义如下
+          public Student(int id, String fatherName, String name)
+         那么，在fatherName域接收到的实际上是name对应的值，而name域接收到的实际上是father_name对应的值，为了避免该情况的出现，可以通过标签的'name'属性
+    -->
+    <constructor>
+      <!--优先根据javaType判断类型，如果javaType没指定，则根据name字段找到对应的set方法，根据其入参类型判断类型，如果找不到对应的set方法，则默认为Object类型-->
+      <idArg column="id" name="id"/>
+      <arg column="name" name="name"/>
+      <arg column="father_name" name="fatherName"/>
+    </constructor>
+  </resultMap>
+
+  <select id="getById"
+          resultMap="student"
+          parameterType="int">
+        SELECT * FROM student where id = #{id}
+   </select>
+
+  <select id="getByIdWithMap"
+          resultMap="studentMap"
+          parameterType="int">
+        SELECT * FROM student where id = #{id}
+   </select>
+
+  <select id="getByIdWithConstructor"
+          resultMap="studentConstructor"
+          parameterType="int">
+        SELECT * FROM student where id = #{id}
+   </select>
+</mapper>
