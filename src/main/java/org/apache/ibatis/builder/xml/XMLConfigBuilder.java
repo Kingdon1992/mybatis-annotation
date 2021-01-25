@@ -117,10 +117,13 @@ public class XMLConfigBuilder extends BaseBuilder {
       objectFactoryElement(root.evalNode("objectFactory"));
       objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"));
       reflectorFactoryElement(root.evalNode("reflectorFactory"));
+      // 使用系统属性，设置全局配置configuration相应的域值
       settingsElement(settings);
       // read it after objectFactory and objectWrapperFactory issue #631
+      // 处理<environments/>标签，配置环境，可配置多个
       environmentsElement(root.evalNode("environments"));
       databaseIdProviderElement(root.evalNode("databaseIdProvider"));
+      // 处理<typeHandlers/>标签，注册类型处理器
       typeHandlerElement(root.evalNode("typeHandlers"));
       mapperElement(root.evalNode("mappers"));
     } catch (Exception e) {
@@ -295,17 +298,24 @@ public class XMLConfigBuilder extends BaseBuilder {
     configuration.setDefaultSqlProviderType(resolveClass(props.getProperty("defaultSqlProviderType")));
   }
 
+  //<environments/>标签
   private void environmentsElement(XNode context) throws Exception {
     if (context != null) {
       if (environment == null) {
+        //默认使用default环境
         environment = context.getStringAttribute("default");
       }
+      //<environments/>子标签<environment/>
       for (XNode child : context.getChildren()) {
+        //id属性和
         String id = child.getStringAttribute("id");
         if (isSpecifiedEnvironment(id)) {
+          //配置事务管理器工厂
           TransactionFactory txFactory = transactionManagerElement(child.evalNode("transactionManager"));
+          //配置数据库源工厂
           DataSourceFactory dsFactory = dataSourceElement(child.evalNode("dataSource"));
           DataSource dataSource = dsFactory.getDataSource();
+          //使用<environment/>标签的id属性作为id
           Environment.Builder environmentBuilder = new Environment.Builder(id)
               .transactionFactory(txFactory)
               .dataSource(dataSource);
@@ -336,7 +346,9 @@ public class XMLConfigBuilder extends BaseBuilder {
 
   private TransactionFactory transactionManagerElement(XNode context) throws Exception {
     if (context != null) {
+      //根据type属性寻找相应的类，通过无参构造器构造事务管理器工厂对象
       String type = context.getStringAttribute("type");
+      //子标签可以用来注入一些属性
       Properties props = context.getChildrenAsProperties();
       TransactionFactory factory = (TransactionFactory) resolveClass(type).getDeclaredConstructor().newInstance();
       factory.setProperties(props);
@@ -356,9 +368,11 @@ public class XMLConfigBuilder extends BaseBuilder {
     throw new BuilderException("Environment declaration requires a DataSourceFactory.");
   }
 
+  //<typeHandlers/>
   private void typeHandlerElement(XNode parent) {
     if (parent != null) {
       for (XNode child : parent.getChildren()) {
+        //<package/>批量注册类型处理器
         if ("package".equals(child.getName())) {
           String typeHandlerPackage = child.getStringAttribute("name");
           typeHandlerRegistry.register(typeHandlerPackage);
