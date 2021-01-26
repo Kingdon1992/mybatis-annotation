@@ -104,15 +104,18 @@ public class MapperBuilderAssistant extends BaseBuilder {
   }
 
   public Cache useCacheRef(String namespace) {
+    // 缓存ref为空，直接报错
     if (namespace == null) {
       throw new BuilderException("cache-ref element requires a namespace attribute.");
     }
     try {
       unresolvedCacheRef = true;
+      // 获取目标缓存引用
       Cache cache = configuration.getCache(namespace);
       if (cache == null) {
         throw new IncompleteElementException("No cache for namespace '" + namespace + "' could be found.");
       }
+      // 缓存替换
       currentCache = cache;
       unresolvedCacheRef = false;
       return cache;
@@ -423,7 +426,12 @@ public class MapperBuilderAssistant extends BaseBuilder {
       String resultSet,
       String foreignColumn,
       boolean lazy) {
+    //根据【结果类】、属性值property、指定的javaType，确定最终的javaType，优先级如下
+    //①javaType
+    //②反射结果类，根据[property]找到对应的set方法，取set方法的入参类型作为javaType
+    //③Object.class
     Class<?> javaTypeClass = resolveResultJavaType(resultType, property, javaType);
+    //获取类型处理器，首先根据typeHandler类对象获取typeHandler对象，如果没有，直接注册一个
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
     List<ResultMapping> composites;
     if ((nestedSelect == null || nestedSelect.isEmpty()) && (foreignColumn == null || foreignColumn.isEmpty())) {
@@ -526,14 +534,17 @@ public class MapperBuilderAssistant extends BaseBuilder {
   }
 
   private Class<?> resolveResultJavaType(Class<?> resultType, String property, Class<?> javaType) {
+    //当javaType不为null时，直接返回javaType
     if (javaType == null && property != null) {
       try {
+        //通过对【结果类】进行反射，看[property]属性是否有对应的set方法，如果有，找到入参类型作为javaType
         MetaClass metaResultType = MetaClass.forClass(resultType, configuration.getReflectorFactory());
         javaType = metaResultType.getSetterType(property);
       } catch (Exception e) {
         // ignore, following null check statement will deal with the situation
       }
     }
+    //都找不到时，直接返回Object类
     if (javaType == null) {
       javaType = Object.class;
     }

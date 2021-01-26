@@ -133,13 +133,16 @@ public abstract class BaseBuilder {
   }
 
   protected TypeHandler<?> resolveTypeHandler(Class<?> javaType, Class<? extends TypeHandler<?>> typeHandlerType) {
+    //类型处理器类为空，直接返回空
     if (typeHandlerType == null) {
       return null;
     }
     // javaType ignored for injected handlers see issue #746 for full detail
+    // 前往Map<Class<?>, TypeHandler<?>>结构，获取对应的类型处理器对象
     TypeHandler<?> handler = typeHandlerRegistry.getMappingTypeHandler(typeHandlerType);
     if (handler == null) {
       // not in registry, create a new one
+      // 如果没有注册（比如漏注册了），此处会根据Class对象注册一个新的
       handler = typeHandlerRegistry.getInstance(javaType, typeHandlerType);
     }
     return handler;

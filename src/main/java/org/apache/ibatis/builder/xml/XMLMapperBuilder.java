@@ -91,6 +91,7 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
 
   public void parse() {
+    //如果该xml文件已经加载过一次，则不再加载
     if (!configuration.isResourceLoaded(resource)) {
       configurationElement(parser.evalNode("/mapper"));
       configuration.addLoadedResource(resource);
@@ -108,12 +109,15 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   private void configurationElement(XNode context) {
     try {
+      //设置名称空间，用于划分二级缓存
       String namespace = context.getStringAttribute("namespace");
       if (namespace == null || namespace.isEmpty()) {
         throw new BuilderException("Mapper's namespace cannot be empty");
       }
       builderAssistant.setCurrentNamespace(namespace);
+      //可以引用其他名称空间的缓存
       cacheRefElement(context.evalNode("cache-ref"));
+      //设置缓存
       cacheElement(context.evalNode("cache"));
       //parameterMapElement(context.evalNodes("/mapper/parameterMap"));
       resultMapElements(context.evalNodes("/mapper/resultMap"));
@@ -189,9 +193,11 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   private void cacheRefElement(XNode context) {
     if (context != null) {
+      // 全局配置维护了一个Map<String, String>结构，key是引用别人缓存的名称空间，value是缓存被引用的名称空间
       configuration.addCacheRef(builderAssistant.getCurrentNamespace(), context.getStringAttribute("namespace"));
       CacheRefResolver cacheRefResolver = new CacheRefResolver(builderAssistant, context.getStringAttribute("namespace"));
       try {
+        // 完成缓存替换
         cacheRefResolver.resolveCacheRef();
       } catch (IncompleteElementException e) {
         configuration.addIncompleteCacheRef(cacheRefResolver);
@@ -254,8 +260,10 @@ public class XMLMapperBuilder extends BaseBuilder {
     return resultMapElement(resultMapNode, Collections.emptyList(), null);
   }
 
+  //<resultMap/>
   private ResultMap resultMapElement(XNode resultMapNode, List<ResultMapping> additionalResultMappings, Class<?> enclosingType) {
     ErrorContext.instance().activity("processing " + resultMapNode.getValueBasedIdentifier());
+    //根据type属性，获取结果集封装的类，下称【结果类】
     String type = resultMapNode.getStringAttribute("type",resultMapNode.getStringAttribute("ofType", resultMapNode.getStringAttribute("resultType", resultMapNode.getStringAttribute("javaType"))));
     Class<?> typeClass = resolveClass(type);
     if (typeClass == null) {
@@ -264,7 +272,9 @@ public class XMLMapperBuilder extends BaseBuilder {
     Discriminator discriminator = null;
     List<ResultMapping> resultMappings = new ArrayList<>(additionalResultMappings);
     List<XNode> resultChildren = resultMapNode.getChildren();
+    //<resultMap/>子标签
     for (XNode resultChild : resultChildren) {
+      //<resultMap/>子标签<constructor/>，用于调用结果类的构造函数
       if ("constructor".equals(resultChild.getName())) {
         processConstructorElement(resultChild, typeClass, resultMappings);
       } else if ("discriminator".equals(resultChild.getName())) {
@@ -303,11 +313,15 @@ public class XMLMapperBuilder extends BaseBuilder {
     return null;
   }
 
+  //<constructor/>
   private void processConstructorElement(XNode resultChild, Class<?> resultType, List<ResultMapping> resultMappings) {
     List<XNode> argChildren = resultChild.getChildren();
+    //存在两种类型的子标签：①<idArg>，②<arg>
     for (XNode argChild : argChildren) {
+      //由<constructor/>子标签（①<idArg>，②<arg>）生成的ResultMapping对象，会携带特殊的【ResultFlag.CONSTRUCTOR】标签
       List<ResultFlag> flags = new ArrayList<>();
       flags.add(ResultFlag.CONSTRUCTOR);
+      //而<idArg>标签还会额外携带【ResultFlag.ID】标签
       if ("idArg".equals(argChild.getName())) {
         flags.add(ResultFlag.ID);
       }
@@ -367,13 +381,17 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   private ResultMapping buildResultMappingFromContext(XNode context, Class<?> resultType, List<ResultFlag> flags) {
     String property;
+    //对于一条<resultMap/>的后代标签而言，如果是<constructor/>标签的后代，那么属性值取自name属性，不然都来自property属性
     if (flags.contains(ResultFlag.CONSTRUCTOR)) {
       property = context.getStringAttribute("name");
     } else {
       property = context.getStringAttribute("property");
     }
+    //查询结果字段名或别名(看sql怎么写)
     String column = context.getStringAttribute("column");
+    //对应的javaType
     String javaType = context.getStringAttribute("javaType");
+    //对应的jdbcType
     String jdbcType = context.getStringAttribute("jdbcType");
     String nestedSelect = context.getStringAttribute("select");
     String nestedResultMap = context.getStringAttribute("resultMap", () ->
@@ -384,8 +402,11 @@ public class XMLMapperBuilder extends BaseBuilder {
     String resultSet = context.getStringAttribute("resultSet");
     String foreignColumn = context.getStringAttribute("foreignColumn");
     boolean lazy = "lazy".equals(context.getStringAttribute("fetchType", configuration.isLazyLoadingEnabled() ? "lazy" : "eager"));
+    //根据javaType属性设置的值，找到对应的java类对象
     Class<?> javaTypeClass = resolveClass(javaType);
+    //根据typeHandler属性设置的值，找到对应的类型处理器类对象
     Class<? extends TypeHandler<?>> typeHandlerClass = resolveClass(typeHandler);
+    //根据jdbcType属性设置的值，找到对应的JdbcType枚举值
     JdbcType jdbcTypeEnum = resolveJdbcType(jdbcType);
     return builderAssistant.buildResultMapping(resultType, property, column, javaTypeClass, jdbcTypeEnum, nestedSelect, nestedResultMap, notNullColumn, columnPrefix, typeHandlerClass, flags, resultSet, foreignColumn, lazy);
   }

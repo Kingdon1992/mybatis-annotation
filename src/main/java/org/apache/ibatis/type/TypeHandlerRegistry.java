@@ -334,8 +334,10 @@ public final class TypeHandlerRegistry {
   @SuppressWarnings("unchecked")
   public <T> void register(TypeHandler<T> typeHandler) {
     boolean mappedTypeFound = false;
+    //通过@MappedTypes注解获取javaType
     MappedTypes mappedTypes = typeHandler.getClass().getAnnotation(MappedTypes.class);
     if (mappedTypes != null) {
+      //每个javaType都注册一次
       for (Class<?> handledType : mappedTypes.value()) {
         register(handledType, typeHandler);
         mappedTypeFound = true;
@@ -363,8 +365,10 @@ public final class TypeHandlerRegistry {
   }
 
   private <T> void register(Type javaType, TypeHandler<? extends T> typeHandler) {
+    // 通过@MappedJdbcTypes注解获取jdbcType
     MappedJdbcTypes mappedJdbcTypes = typeHandler.getClass().getAnnotation(MappedJdbcTypes.class);
     if (mappedJdbcTypes != null) {
+      // 可以通过@MappedJdbcTypes一次性配置多个jdbcType
       for (JdbcType handledJdbcType : mappedJdbcTypes.value()) {
         register(javaType, handledJdbcType, typeHandler);
       }
@@ -389,14 +393,17 @@ public final class TypeHandlerRegistry {
   }
 
   private void register(Type javaType, JdbcType jdbcType, TypeHandler<?> handler) {
+    //维护类型处理器的一共是两个结构
     if (javaType != null) {
       Map<JdbcType, TypeHandler<?>> map = typeHandlerMap.get(javaType);
       if (map == null || map == NULL_TYPE_HANDLER_MAP) {
         map = new HashMap<>();
       }
       map.put(jdbcType, handler);
+      //Map<Type, Map<JdbcType, TypeHandler<?>>>
       typeHandlerMap.put(javaType, map);
     }
+    //Map<Class<?>, TypeHandler<?>>
     allTypeHandlersMap.put(handler.getClass(), handler);
   }
 
@@ -417,6 +424,7 @@ public final class TypeHandlerRegistry {
         mappedTypeFound = true;
       }
     }
+    //如果标签属性和注解都没配置javaType，则注册一个javaType类型为null的类型处理器（可以认为null也是一种类型，对null进行处理）
     if (!mappedTypeFound) {
       register(getInstance(null, typeHandlerClass));
     }
@@ -444,7 +452,7 @@ public final class TypeHandlerRegistry {
   public <T> TypeHandler<T> getInstance(Class<?> javaTypeClass, Class<?> typeHandlerClass) {
     if (javaTypeClass != null) {
       try {
-        //
+        //首先判断类型处理器类是否有构造器：有且只有一个入参，类型为Class，该构造器可以用入参记录泛型的类型参数
         Constructor<?> c = typeHandlerClass.getConstructor(Class.class);
         return (TypeHandler<T>) c.newInstance(javaTypeClass);
       } catch (NoSuchMethodException ignored) {
@@ -454,6 +462,7 @@ public final class TypeHandlerRegistry {
       }
     }
     try {
+      //使用默认的无参构造器
       Constructor<?> c = typeHandlerClass.getConstructor();
       return (TypeHandler<T>) c.newInstance();
     } catch (Exception e) {
