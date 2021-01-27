@@ -136,7 +136,30 @@ public class ResultMapping {
       // lock down collections
       resultMapping.flags = Collections.unmodifiableList(resultMapping.flags);
       resultMapping.composites = Collections.unmodifiableList(resultMapping.composites);
+      /*
+       为这个ResultMapping对象挑选一个适合的类型处理器
+       ① 首先判断typeHandler域是否有现成的类型处理器，如果有，就用现成的
+       ② 如果typeHandler域没有现成的类型处理器，查询一下javaType，如果没有指定，那么类型处理器就为空
+       ③ 如果有javaType，那么前往全局配置的处理器注册中心typeHandlerRegistry，里面有2个存储类型处理器的结构，本次从Map<Type, Map<JdbcType, TypeHandler<?>>>结构中挑选
+       ④ 根据javaType，先取出Map<JdbcType, TypeHandler<?>>结构，此处有几个要点
+          - 如果javaType是ParamMap，直接放弃挑选，即类型处理器置空
+          - 如果根据javaType挑选出的Map<JdbcType, TypeHandler<?>>结构，值是Collections.emptyMap()，这个值是Collections的类实例变量，全局共享，直接放弃挑选，即类型处理器置空
+          - 如果根据javaType找不到相应的Map<JdbcType, TypeHandler<?>>结构（为null，而非Collections.emptyMap()），判断javaType类型
+            - 枚举类：使用枚举类专门的类型处理器
+            - 其他：递归使用javaType的父类、祖父类，直到为空或Object为止去寻找，如果存在相应的Map<JdbcType, TypeHandler<?>>结构，则作为该javaType的结构，否则返回空
+       ⑤ 根据获取的Map<JdbcType, TypeHandler<?>>结构，做处理
+          - 如果为空，直接放弃挑选，即类型处理器置空
+          - 根据jdbcType取类型处理器
+          - 如果上述步骤挑选为空，设置jdbcType为null去取类型处理器作为目标
+          - 如果上述步骤挑选为空，判断Map<JdbcType, TypeHandler<?>>结构是不是只有一个类型处理器，如果是，直接返回该类型处理器作为目标，否则类型处理器置空
+       */
       resolveTypeHandler();
+      /*
+      校验合法性（暂时没明白校验目的，myTag）
+      ① nestedQueryId域与nestedResultMapId域不允许同时存在
+      ② nestedQueryId域与nestedResultMapId域都为空时，类型处理器typeHandler域不允许为空
+      ③ ……
+       */
       validate();
       return resultMapping;
     }

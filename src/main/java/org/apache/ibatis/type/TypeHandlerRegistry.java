@@ -234,10 +234,13 @@ public final class TypeHandlerRegistry {
     if (ParamMap.class.equals(type)) {
       return null;
     }
+    // 取出javaType对应的所有类型处理器
     Map<JdbcType, TypeHandler<?>> jdbcHandlerMap = getJdbcHandlerMap(type);
     TypeHandler<?> handler = null;
     if (jdbcHandlerMap != null) {
+      // 根据jdbcType取类型处理器
       handler = jdbcHandlerMap.get(jdbcType);
+      // 如果根据jdbcType取不到处理器，那就取jdbcType为null的类型处理器
       if (handler == null) {
         handler = jdbcHandlerMap.get(null);
       }
@@ -250,14 +253,16 @@ public final class TypeHandlerRegistry {
     return (TypeHandler<T>) handler;
   }
 
-  private Map<JdbcType, TypeHandler<?>> getJdbcHandlerMap(Type type) {
+  private Map<JdbcType, TypeHandler<?>> getJdbcHandlerMap(Type type) {    // 首先根据javaType把所有jdbcType对应的处理器取出
     Map<JdbcType, TypeHandler<?>> jdbcHandlerMap = typeHandlerMap.get(type);
+    // NULL_TYPE_HANDLER_MAP值是Collections.emptyMap()，类变量，全局共享
     if (NULL_TYPE_HANDLER_MAP.equals(jdbcHandlerMap)) {
       return null;
     }
     if (jdbcHandlerMap == null && type instanceof Class) {
       Class<?> clazz = (Class<?>) type;
       if (Enum.class.isAssignableFrom(clazz)) {
+        // 处理枚举类类型处理器，Mybatis默认内置了一个枚举类型处理器，在此处为所有枚举类设置使用该类型处理器
         Class<?> enumClass = clazz.isAnonymousClass() ? clazz.getSuperclass() : clazz;
         jdbcHandlerMap = getJdbcHandlerMapForEnumInterfaces(enumClass, enumClass);
         if (jdbcHandlerMap == null) {
@@ -265,6 +270,7 @@ public final class TypeHandlerRegistry {
           return typeHandlerMap.get(enumClass);
         }
       } else {
+        // 非枚举类，会递归查询其父类的Map<JdbcType, TypeHandler<?>>结构，如果有则作为该javeType的结构，如果没有则递归父类查询，直到有或者父类为Object或null
         jdbcHandlerMap = getJdbcHandlerMapForSuperclass(clazz);
       }
     }

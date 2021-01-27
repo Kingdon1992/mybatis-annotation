@@ -33,6 +33,7 @@ import org.w3c.dom.NodeList;
 public class XNode {
 
   private final Node node;
+  // 节点名称，比如<id/>标签的就是"id"
   private final String name;
   private final String body;
   private final Properties attributes;
@@ -74,6 +75,12 @@ public class XNode {
     return builder.toString();
   }
 
+  /**
+   * 生成ResultMap对象的id
+   *   - xml文件处限制<resultMap/>标签必须有id属性，所以此处生成id的是其他标签，比如<association/>, <collection/>, <case/>
+   *   - 格式：...祖父标签名[属性名]_父标签名[属性名]_标签名[属性名]
+   *   - 当属性名找不到时，直接省略：...祖父标签名[属性名]_父标签名_标签名[属性名]
+   */
   public String getValueBasedIdentifier() {
     StringBuilder builder = new StringBuilder();
     XNode current = this;
@@ -81,16 +88,22 @@ public class XNode {
       if (current != this) {
         builder.insert(0, "_");
       }
+      //获取标签属性作为拼接字符串，从高到低的优先级:id、value、property
       String value = current.getStringAttribute("id",
           current.getStringAttribute("value",
               current.getStringAttribute("property", (String) null)));
+      //拼接字符串不为空就开始拼接，假设此处值为com.kingdon
       if (value != null) {
+        //com.kingdon
         value = value.replace('.', '_');
+        //com_kingdon
         builder.insert(0, "]");
         builder.insert(0,
             value);
         builder.insert(0, "[");
+        //[com_kingdon]
       }
+      //current.getName()即节点名称，<id/>标签的节点名称即"id"
       builder.insert(0, current.getName());
       current = current.getParent();
     }

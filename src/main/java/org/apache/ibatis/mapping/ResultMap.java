@@ -39,9 +39,26 @@ public class ResultMap {
 
   private String id;
   private Class<?> type;
+  /**
+   * 所有的ResultMapping对象，后续会被分类存入
+   * idResultMappings
+   * constructorResultMappings
+   * propertyResultMappings
+   */
   private List<ResultMapping> resultMappings;
+  /**
+   * 判断resultMappings域是否存在ResultMapping对象含有id标志
+   * ① 有：将含有id标志的ResultMapping对象其放入该域
+   * ② 无：将resultMappings域持有的所有ResultMapping对象放入该域
+   */
   private List<ResultMapping> idResultMappings;
+  /**
+   * 含有ResultFlag.CONSTRUCTOR标志的ResultMapping对象
+   */
   private List<ResultMapping> constructorResultMappings;
+  /**
+   * 不含有ResultFlag.CONSTRUCTOR标志的ResultMapping对象
+   */
   private List<ResultMapping> propertyResultMappings;
   private Set<String> mappedColumns;
   private Set<String> mappedProperties;
@@ -90,6 +107,7 @@ public class ResultMap {
       resultMap.propertyResultMappings = new ArrayList<>();
       final List<String> constructorArgNames = new ArrayList<>();
       for (ResultMapping resultMapping : resultMap.resultMappings) {
+        // 任意一个ResultMapping对象持有嵌套查询id，证明该ResultMap对象有嵌套查询
         resultMap.hasNestedQueries = resultMap.hasNestedQueries || resultMapping.getNestedQueryId() != null;
         resultMap.hasNestedResultMaps = resultMap.hasNestedResultMaps || (resultMapping.getNestedResultMapId() != null && resultMapping.getResultSet() == null);
         final String column = resultMapping.getColumn();
@@ -107,6 +125,12 @@ public class ResultMap {
         if (property != null) {
           resultMap.mappedProperties.add(property);
         }
+        /*
+        检查到ResultMapping含有构造器标志ResultFlag.CONSTRUCTOR
+        ① 含有：将该ResultMapping对象加入constructorResultMappings，并做后续处理
+            - 当该ResultMapping对象property域值不为空时（<arg/>或<idArg/>标签的name属性解析而来），存储该值，后续根据这些值寻找类的构造器
+        ② 不含有：将该ResultMapping对象加入propertyResultMappings
+         */
         if (resultMapping.getFlags().contains(ResultFlag.CONSTRUCTOR)) {
           resultMap.constructorResultMappings.add(resultMapping);
           if (resultMapping.getProperty() != null) {
@@ -115,6 +139,8 @@ public class ResultMap {
         } else {
           resultMap.propertyResultMappings.add(resultMapping);
         }
+
+        // 检查到ResultMapping含有ResultFlag.ID标志，有则将该ResultMapping对象加入到ResultMap对象维护的List<ResultMapping>存储结构中，域名idResultMappings
         if (resultMapping.getFlags().contains(ResultFlag.ID)) {
           resultMap.idResultMappings.add(resultMapping);
         }
@@ -122,6 +148,10 @@ public class ResultMap {
       if (resultMap.idResultMappings.isEmpty()) {
         resultMap.idResultMappings.addAll(resultMap.resultMappings);
       }
+      /*
+      constructorArgNames结构存储了含有ResultFlag.ID标志ResultMapping的property域值，这些值会被用来定位构造器，定位逻辑如下
+      ① constructorArgNames结构如果为空
+       */
       if (!constructorArgNames.isEmpty()) {
         final List<String> actualArgNames = argNamesOfMatchingConstructor(constructorArgNames);
         if (actualArgNames == null) {
@@ -145,10 +175,12 @@ public class ResultMap {
       return resultMap;
     }
 
+    // 此处的入参是<arg/>、<idArg/>标签的name属性数组
     private List<String> argNamesOfMatchingConstructor(List<String> constructorArgNames) {
       Constructor<?>[] constructors = resultMap.type.getDeclaredConstructors();
       for (Constructor<?> constructor : constructors) {
         Class<?>[] paramTypes = constructor.getParameterTypes();
+        // 找到参数数量一致的构造方法
         if (constructorArgNames.size() == paramTypes.length) {
           List<String> paramNames = getArgNames(constructor);
           if (constructorArgNames.containsAll(paramNames)
@@ -160,9 +192,22 @@ public class ResultMap {
       return null;
     }
 
+    /**
+     * 找到的构造方法是否匹配
+     * @param constructorArgNames <arg/>、<idArg/>标签的name属性集合
+     * @param paramTypes 目标构造方法的形参类型集合
+     * @param paramNames 目标构造方法的形参名称集合（来源：@param注解、默认值"argx"、源码形参名）
+     * @return 是否匹配
+     */
     private boolean argTypesMatch(final List<String> constructorArgNames,
         Class<?>[] paramTypes, List<String> paramNames) {
       for (int i = 0; i < constructorArgNames.size(); i++) {
+        /*
+        因为满足下面两个条件，才能这么玩
+        ① paramTypes与paramNames顺序一致
+        ② constructorResultMappings与constructorArgNames一致
+        也是因为该部分的处理，才能使得即便<arg/>、<idArg/>标签乱序，依然能够识别出对应的构造方法
+         */
         Class<?> actualType = paramTypes[paramNames.indexOf(constructorArgNames.get(i))];
         Class<?> specifiedType = resultMap.constructorResultMappings.get(i).getJavaType();
         if (!actualType.equals(specifiedType)) {
@@ -179,6 +224,12 @@ public class ResultMap {
       return true;
     }
 
+    /**
+     * 根据一个类的构造方法获取该方法的所有入参名称，按以下优先级
+     * ①注解{@link Param}的value值
+     * ②jdk编译后的形参名，默认值还是"arg0"、"arg1"，但是可以通过添加编译参数"-parameters"来使编译时仍然使用源码中定义的形参名
+     * ③默认值"arg"+index，即"arg0"、"arg1"这样
+     */
     private List<String> getArgNames(Constructor<?> constructor) {
       List<String> paramNames = new ArrayList<>();
       List<String> actualParamNames = null;

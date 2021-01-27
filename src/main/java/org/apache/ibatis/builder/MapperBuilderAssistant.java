@@ -183,9 +183,18 @@ public class MapperBuilderAssistant extends BaseBuilder {
       Discriminator discriminator,
       List<ResultMapping> resultMappings,
       Boolean autoMapping) {
+    // 将resultMap的id与当前名称空间关联，用"."拼接名称空间与id
     id = applyCurrentNamespace(id, false);
+    // 解析声明继承关系的extend属性，如果extend属性没有指明名称空间，即extend属性不包含"."，会默认用当前resultMap所在的名称空间拼接
     extend = applyCurrentNamespace(extend, true);
 
+    /*
+    处理resultMap的继承关系
+    ① 通过继承id寻找父resultMap，找不到则直接报错
+    ② 将父resultMap持有的List<resultMapping>并入自身的List<resultMapping>，有两点需要注意
+        - 冲突处理：当自身和父resultMap声明了同一个ResultMapping对象（equals方法：判断property域是否相同），以自身优先
+        - 构造器处理：假如自身声明了构造器（某些ResultMapping对象含有ResultFlag.CONSTRUCTOR标志），则从父resultMap继承过来的构造器不要
+     */
     if (extend != null) {
       if (!configuration.hasResultMap(extend)) {
         throw new IncompleteElementException("Could not find a parent resultmap with id '" + extend + "'");
@@ -193,7 +202,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
       ResultMap resultMap = configuration.getResultMap(extend);
       List<ResultMapping> extendedResultMappings = new ArrayList<>(resultMap.getResultMappings());
       extendedResultMappings.removeAll(resultMappings);
-      // Remove parent constructor if this resultMap declares a constructor.
+      // Remove parent constructor if this resultMap declares a constructor.（如果本次声明了一个新的构造器，则移除从父类继承过来的构造器）
       boolean declaresConstructor = false;
       for (ResultMapping resultMapping : resultMappings) {
         if (resultMapping.getFlags().contains(ResultFlag.CONSTRUCTOR)) {
@@ -209,6 +218,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
     ResultMap resultMap = new ResultMap.Builder(configuration, id, type, resultMappings, autoMapping)
         .discriminator(discriminator)
         .build();
+    // 最后resultMap对象都会被加入到全局配置的Map<String, ResultMap>结构中，Key是id，Value即对象本身
     configuration.addResultMap(resultMap);
     return resultMap;
   }
@@ -431,7 +441,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
     //②反射结果类，根据[property]找到对应的set方法，取set方法的入参类型作为javaType
     //③Object.class
     Class<?> javaTypeClass = resolveResultJavaType(resultType, property, javaType);
-    //获取类型处理器，首先根据typeHandler类对象获取typeHandler对象，如果没有，直接注册一个
+    //获取类型处理器，首先根据TypeHandler类对象获取TypeHandler对象，如果没有，直接注册一个
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
     List<ResultMapping> composites;
     if ((nestedSelect == null || nestedSelect.isEmpty()) && (foreignColumn == null || foreignColumn.isEmpty())) {
