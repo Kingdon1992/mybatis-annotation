@@ -3,22 +3,8 @@
   PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kingdon.dao.StudentDao" >
-  <resultMap id="student" type="student">
-    <id property="id" column="id"/>
-    <result property="fatherName" column="father_name" typeHandler="nametypehandler"/>
-  </resultMap>
-
-  <resultMap id="studentMap" type="map">
-    <id property="id" column="id" javaType="_double"/>
-    <result property="fatherName" column="father_name" typeHandler="nametypehandler"/>
-  </resultMap>
-
-  <resultMap id="studentConstructor" type="student">
-    <constructor>
-      <idArg column="id" name="id"/>
-      <arg column="name" name="name"/>
-      <arg column="father_name" name="fatherName"/>
-    </constructor>
+  <resultMap id="student" type="student" autoMapping="true">
+    <collection property="teachers" javaType="teacher" ofType="teacher"/>
   </resultMap>
 
   <select id="getById"
@@ -28,13 +14,7 @@
    </select>
 
   <select id="getByIdWithMap"
-          resultMap="studentMap"
-          parameterType="int">
-        SELECT * FROM student where id = #{id}
-   </select>
-
-  <select id="getByIdWithConstructor"
-          resultMap="studentConstructor"
+          resultType="student"
           parameterType="int">
         SELECT * FROM student where id = #{id}
    </select>

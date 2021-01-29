@@ -36,8 +36,13 @@ import org.apache.ibatis.session.Configuration;
  */
 public class ResultMap {
   private Configuration configuration;
-
+  /**
+   * 该ResultMap对象的id，以所属名称空间开头
+   */
   private String id;
+  /**
+   * 结果类
+   */
   private Class<?> type;
   /**
    * 所有的ResultMapping对象，后续会被分类存入
@@ -60,7 +65,13 @@ public class ResultMap {
    * 不含有ResultFlag.CONSTRUCTOR标志的ResultMapping对象
    */
   private List<ResultMapping> propertyResultMappings;
+  /**
+   * 记录了所有参与映射的数据库字段名
+   */
   private Set<String> mappedColumns;
+  /**
+   * 记录了所有参与映射的Java字段名
+   */
   private Set<String> mappedProperties;
   private Discriminator discriminator;
   private boolean hasNestedResultMaps;
@@ -125,11 +136,11 @@ public class ResultMap {
         if (property != null) {
           resultMap.mappedProperties.add(property);
         }
-        /*
-        检查到ResultMapping含有构造器标志ResultFlag.CONSTRUCTOR
-        ① 含有：将该ResultMapping对象加入constructorResultMappings，并做后续处理
-            - 当该ResultMapping对象property域值不为空时（<arg/>或<idArg/>标签的name属性解析而来），存储该值，后续根据这些值寻找类的构造器
-        ② 不含有：将该ResultMapping对象加入propertyResultMappings
+        /**
+         * 检查到{@link ResultMapping}对象含有构造器标志{@link ResultFlag.CONSTRUCTOR}
+         * ① 含有：将该对象加入constructorResultMappings，并做后续处理
+         *      - 当该对象property域值不为空时（<arg/>或<idArg/>标签的name属性解析而来），存储该值，后续根据这些值寻找类的构造器
+         * ② 不含有：将该对象加入propertyResultMappings
          */
         if (resultMapping.getFlags().contains(ResultFlag.CONSTRUCTOR)) {
           resultMap.constructorResultMappings.add(resultMapping);
@@ -148,9 +159,14 @@ public class ResultMap {
       if (resultMap.idResultMappings.isEmpty()) {
         resultMap.idResultMappings.addAll(resultMap.resultMappings);
       }
-      /*
-      constructorArgNames结构存储了含有ResultFlag.ID标志ResultMapping的property域值，这些值会被用来定位构造器，定位逻辑如下
-      ① constructorArgNames结构如果为空
+      /**
+       * constructorArgNames结构存储了含有{@link ResultFlag.CONSTRUCTOR}标志{@link ResultMapping}对象的{@link ResultMapping.property}域值，这些值会被用来定位构造器，定位逻辑如下
+       * ① 解析<arg/>、<idArg/>标签，取出name属性作为一个数组
+       * ② 根据<resultMap/>标签的type属性，找到对应的结果类的Class对象，再根据<arg/>、<idArg/>标签数量，取出形参数量一致的构造方法
+       * ③ 选取第一个符合目标的构造器
+       *  - 取出构造器所有形参名称（优先从{@link Param}注解中取，如果开启{@link Configuration.useActualParamName}，则通过反射从构造器对象中取，前提是编译参数"-parameters"开启，否则返回默认参数"arg0"这种）
+       *  - 与constructorArgNames比较，如果数量一致、含有的入参名称一致、入参名称一样的类型也一致，则命中
+       * ④ 根据构造器实际的入参名称顺序，为{@link constructorResultMappings}内部的{@link ResultMapping}对象排序
        */
       if (!constructorArgNames.isEmpty()) {
         final List<String> actualArgNames = argNamesOfMatchingConstructor(constructorArgNames);

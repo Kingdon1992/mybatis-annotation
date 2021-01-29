@@ -9,6 +9,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,7 +23,7 @@ public class App {
     InputStream inputStream = Resources.getResourceAsStream("mybatis.xml");
     SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
     SqlSession sqlSession = sqlSessionFactory.openSession();
-    Student student = sqlSession.selectOne("com.kingdon.dao.StudentDao.getById", 1);
+    List<Student> student = sqlSession.selectList("com.kingdon.dao.StudentDao.getById", 1);
     System.out.println(student);
   }
 

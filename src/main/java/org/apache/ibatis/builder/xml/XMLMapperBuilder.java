@@ -275,10 +275,19 @@ public class XMLMapperBuilder extends BaseBuilder {
    */
   private ResultMap resultMapElement(XNode resultMapNode, List<ResultMapping> additionalResultMappings, Class<?> enclosingType) {
     ErrorContext.instance().activity("processing " + resultMapNode.getValueBasedIdentifier());
-    //根据type属性，获取结果集封装的类，下称【结果类】
+    /**
+     * 根据type属性，获取结果集封装的类，下称【结果类】
+     * ① <resultMap/>标签，直接使用type属性
+     * ② <association/>, <collection/>, <case/>标签，作为嵌套查询，会使用自己定义的结果类，按优先级从以下属性中取（从高到低）
+     *    - type
+     *    - ofType
+     *    - resultType
+     *    - javaType
+     */
     String type = resultMapNode.getStringAttribute("type",resultMapNode.getStringAttribute("ofType", resultMapNode.getStringAttribute("resultType", resultMapNode.getStringAttribute("javaType"))));
     Class<?> typeClass = resolveClass(type);
     if (typeClass == null) {
+      //<resultMap/>一定会定义type属性，当type属性的值找不到相应的类，会直接报错，所以能走到这里的，一定是<association/>, <collection/>, <case/>标签之一
       typeClass = inheritEnclosingType(resultMapNode, enclosingType);
     }
     Discriminator discriminator = null;
@@ -428,6 +437,16 @@ public class XMLMapperBuilder extends BaseBuilder {
     return builderAssistant.buildResultMapping(resultType, property, column, javaTypeClass, jdbcTypeEnum, nestedSelect, nestedResultMap, notNullColumn, columnPrefix, typeHandlerClass, flags, resultSet, foreignColumn, lazy);
   }
 
+  /**
+   * Mybatis全局对该方法一共有2处调用
+   * ① 处理<resultMap/>后代标签，然后该标签没有设置resultMap属性
+   *    - 该情况下，只有是<association/>, <collection/>, <case/>标签，并且select属性没设置（即嵌套查询未设置），才会被处理
+   * ② 处理<discriminator/>子标签<case/>时，发现<case/>标签没有设置resultMap属性
+   *    - 该情况下，只要select属性没设置（即嵌套查询未设置），就会被处理
+   * 原因：
+   *    - 作为嵌套查询，select属性指向一个<select/>标签，该标签一定会有resultMap或者resultType去指导完成映射
+   *    - 当select属性不存在时，如何完成映射，就要交给标签自己完成，即自己创建一个{@link ResultMap}对象
+   */
   private String processNestedResultMappings(XNode context, List<ResultMapping> resultMappings, Class<?> enclosingType) {
     if (Arrays.asList("association", "collection", "case").contains(context.getName())
         && context.getStringAttribute("select") == null) {
@@ -438,6 +457,17 @@ public class XMLMapperBuilder extends BaseBuilder {
     return null;
   }
 
+  /**
+   * Mybatis全局只有一处地方调用该方法，调用时已经保证了<collection/>标签select属性为空
+   * 作为数组，必须明确自己的类型参数，而类型参数的来源可以是
+   * ① select属性，该属性指向的<select/>标签所带有的resultMap或resultType属性
+   *    - resultMap属性：指向<resultMap/>标签，该标签的type属性，可以映射成类型参数
+   *    - resultType属性：直接可以映射成类型参数
+   * ② resultMap属性：resultMap属性指向的<resultMap/>标签所携带的type属性，可以映射成类型参数
+   * ③ javaType属性：在获取结果类的逻辑中，javaType属性作为type、ofType、resultType、javaType中的最低优先级，有兜底作用，也可以映射为类型参数
+   *
+   * 当满足①②③时，就代表需要对<collection/>标签进行类型推断，此处就是校验类型推断逻辑是否能够进行，如果不能够进行，就直接在此处报错
+   */
   protected void validateCollection(XNode context, Class<?> enclosingType) {
     if ("collection".equals(context.getName()) && context.getStringAttribute("resultMap") == null
         && context.getStringAttribute("javaType") == null) {

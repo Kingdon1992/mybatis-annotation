@@ -436,10 +436,7 @@ public class MapperBuilderAssistant extends BaseBuilder {
       String resultSet,
       String foreignColumn,
       boolean lazy) {
-    //根据【结果类】、属性值property、指定的javaType，确定最终的javaType，优先级如下
-    //①javaType
-    //②反射结果类，根据[property]找到对应的set方法，取set方法的入参类型作为javaType
-    //③Object.class
+    //处理javaType
     Class<?> javaTypeClass = resolveResultJavaType(resultType, property, javaType);
     //获取类型处理器，首先根据TypeHandler类对象获取TypeHandler对象，如果没有，直接注册一个
     TypeHandler<?> typeHandlerInstance = resolveTypeHandler(javaTypeClass, typeHandler);
@@ -543,6 +540,16 @@ public class MapperBuilderAssistant extends BaseBuilder {
     return composites;
   }
 
+  /**
+   * 处理<resultMap/>后代标签，生成{@link ResultMapping}对象时，关于javaType的基本逻辑
+   *
+   * 按以下优先级处理（从高到低）
+   * ① 直接获取：标签的javaType属性
+   * ② 类型推断：对标签指定的结果类进行反射，根据[property]找到对应的set方法，取set方法的入参类型作为javaType
+   *    - 因为类型推断基于结果类的set方法+标签的property属性（<arg/>、<idArg/>标签为name属性）,当结果类是{@link Map}时，无法进行类型推断，
+   *      所以官网有这么一句描述："如果你映射到的是 HashMap，那么你应该明确地指定 javaType 来保证行为与期望的相一致。"
+   * ③ 默认值：Object.class
+   */
   private Class<?> resolveResultJavaType(Class<?> resultType, String property, Class<?> javaType) {
     //当javaType不为null时，直接返回javaType
     if (javaType == null && property != null) {
