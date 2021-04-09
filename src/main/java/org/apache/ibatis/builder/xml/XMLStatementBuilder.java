@@ -53,6 +53,9 @@ public class XMLStatementBuilder extends BaseBuilder {
     this.requiredDatabaseId = databaseId;
   }
 
+  /**
+   * 解析编写sql语句的标签，此处的context即<select/>、<update/>等标签
+   */
   public void parseStatementNode() {
     String id = context.getStringAttribute("id");
     String databaseId = context.getStringAttribute("databaseId");
@@ -61,17 +64,22 @@ public class XMLStatementBuilder extends BaseBuilder {
       return;
     }
 
+    //根据标签名称，确定本次的sql类型：UNKNOWN, INSERT, UPDATE, DELETE, SELECT, FLUSH
     String nodeName = context.getNode().getNodeName();
     SqlCommandType sqlCommandType = SqlCommandType.valueOf(nodeName.toUpperCase(Locale.ENGLISH));
     boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
+    //是否刷新缓存（本地缓存和二级缓存），除了查询操作，默认刷新缓存
     boolean flushCache = context.getBooleanAttribute("flushCache", !isSelect);
+    //是否使用缓存（二级缓存），除了查询操作，默认不使用缓存
     boolean useCache = context.getBooleanAttribute("useCache", isSelect);
+
     boolean resultOrdered = context.getBooleanAttribute("resultOrdered", false);
 
-    // Include Fragments before parsing
+    // Include Fragments before parsing(处理<include/>标签)
     XMLIncludeTransformer includeParser = new XMLIncludeTransformer(configuration, builderAssistant);
     includeParser.applyIncludes(context.getNode());
 
+    //处理入参类型
     String parameterType = context.getStringAttribute("parameterType");
     Class<?> parameterTypeClass = resolveClass(parameterType);
 

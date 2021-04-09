@@ -96,9 +96,16 @@ public class XMLMapperBuilder extends BaseBuilder {
       // 正式加载xml文件的根标签<mapper/>
       configurationElement(parser.evalNode("/mapper"));
       configuration.addLoadedResource(resource);
+      /**
+       * 将解析完的<mapper/>标签进行记录
+       * ① 取出namespace属性，解析为对应的Class对象
+       * ② 将该Class对象（要求必须是接口）纳入全局配置的{@link Configuration.mapperRegistry}中，代表该Class对象对应的xml资源已经加载
+       * ③ 将该namespace属性值拼接一下纳入{@link Configuration.loadedResources}中，代表该namespace资源已经加载
+       */
       bindMapperForNamespace();
     }
 
+    // 容错处理
     parsePendingResultMaps();
     parsePendingCacheRefs();
     parsePendingStatements();
@@ -120,15 +127,22 @@ public class XMLMapperBuilder extends BaseBuilder {
       cacheRefElement(context.evalNode("cache-ref"));
       // 设置缓存
       cacheElement(context.evalNode("cache"));
-      //parameterMapElement(context.evalNodes("/mapper/parameterMap"));
+      // 过时方法，遗弃
+      parameterMapElement(context.evalNodes("/mapper/parameterMap"));
+      // 解析结果映射配置
       resultMapElements(context.evalNodes("/mapper/resultMap"));
+      // 解析<sql/>标签
       sqlElement(context.evalNodes("/mapper/sql"));
+      // 解析编写sql的标签
       buildStatementFromContext(context.evalNodes("select|insert|update|delete"));
     } catch (Exception e) {
       throw new BuilderException("Error parsing Mapper XML. The XML location is '" + resource + "'. Cause: " + e, e);
     }
   }
 
+  /**
+   * @param list 即<select/>、<update/>等标签的集合
+   */
   private void buildStatementFromContext(List<XNode> list) {
     if (configuration.getDatabaseId() != null) {
       buildStatementFromContext(list, configuration.getDatabaseId());
@@ -372,6 +386,15 @@ public class XMLMapperBuilder extends BaseBuilder {
     return builderAssistant.buildDiscriminator(resultType, column, javaTypeClass, jdbcTypeEnum, typeHandlerClass, discriminatorMap);
   }
 
+  /**
+   * 对于<sql/>标签，解析分两步，此处是第一步
+   * ① 确认全局配置是否设置了databaseId
+   *    - 是：所有<sql/>都会被筛选，只有databaseId属性设置了一样的值，才会被纳入sqlFragments中
+   *    - 否：所有<sql/>都会被筛选，只要设置了databaseId属性，都不会被纳入sqlFragments中
+   * ② 剩下的全部是没有设置databaseId属性的<sql/>标签，判断<sql/>标签是否已经被纳入过sqlFragments中（通过id属性进行判断）
+   *    - 是：以设置了databaseId的优先，忽略
+   *    - 否：纳入sqlFragments中
+   */
   private void sqlElement(List<XNode> list) {
     if (configuration.getDatabaseId() != null) {
       sqlElement(list, configuration.getDatabaseId());
@@ -458,15 +481,11 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
 
   /**
+   * 校验<collection/>标签的方法，到最后也没明白意义是啥
    * Mybatis全局只有一处地方调用该方法，调用时已经保证了<collection/>标签select属性为空
-   * 作为数组，必须明确自己的类型参数，而类型参数的来源可以是
-   * ① select属性，该属性指向的<select/>标签所带有的resultMap或resultType属性
-   *    - resultMap属性：指向<resultMap/>标签，该标签的type属性，可以映射成类型参数
-   *    - resultType属性：直接可以映射成类型参数
-   * ② resultMap属性：resultMap属性指向的<resultMap/>标签所携带的type属性，可以映射成类型参数
-   * ③ javaType属性：在获取结果类的逻辑中，javaType属性作为type、ofType、resultType、javaType中的最低优先级，有兜底作用，也可以映射为类型参数
-   *
-   * 当满足①②③时，就代表需要对<collection/>标签进行类型推断，此处就是校验类型推断逻辑是否能够进行，如果不能够进行，就直接在此处报错
+   * ① 必须是<collection/>标签——毕竟是为了检查<collection/>合法性的方法，其他标签不适用
+   * ② resultMap属性必须为空——不为空的话会直接跳过{@link #processNestedResultMappings}方法，也就会跳过该方法
+   * ③ javaTYpe属性必须为空——不明白有啥用myTag
    */
   protected void validateCollection(XNode context, Class<?> enclosingType) {
     if ("collection".equals(context.getName()) && context.getStringAttribute("resultMap") == null

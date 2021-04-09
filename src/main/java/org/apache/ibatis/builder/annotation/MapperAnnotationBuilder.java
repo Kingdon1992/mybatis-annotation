@@ -121,6 +121,7 @@ public class MapperAnnotationBuilder {
       parseCache();
       parseCacheRef();
       for (Method method : type.getMethods()) {
+        //对于接口中的桥方法和默认实现的发现，直接跳过
         if (!canHaveStatement(method)) {
           continue;
         }
@@ -223,11 +224,24 @@ public class MapperAnnotationBuilder {
     }
   }
 
+  /**
+   * 根据方法信息解析出一个{@link org.apache.ibatis.mapping.ResultMap}对象
+   * 方法的返回类型——结果类
+   * {@link Arg}注解——<constructor/>标签
+   *  - id域为true:<idArg/>标签
+   *  - id域为false:<arg/>标签
+   * {@link Result}注解
+   *  - id域为true:<id/>标签
+   *  - id域为false:<result/>标签
+   * {@link TypeDiscriminator}注解——<discriminator/>标签
+   */
   private String parseResultMap(Method method) {
+    //结果类
     Class<?> returnType = getReturnType(method);
     Arg[] args = method.getAnnotationsByType(Arg.class);
     Result[] results = method.getAnnotationsByType(Result.class);
     TypeDiscriminator typeDiscriminator = method.getAnnotation(TypeDiscriminator.class);
+    //自动生成id
     String resultMapId = generateResultMapName(method);
     applyResultMap(resultMapId, returnType, args, results, typeDiscriminator);
     return resultMapId;

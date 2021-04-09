@@ -3,19 +3,30 @@
   PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.kingdon.dao.StudentDao" >
-  <resultMap id="student" type="student" autoMapping="true">
-    <collection property="teachers" javaType="teacher" ofType="teacher"/>
+  <resultMap id="student" type="student">
+    <id property="id" column="student_id"/>
+    <result property="name" column="student_name" typeHandler="nametypehandler"/>
+    <collection property="teachers" resultMap="test">
+<!--      <id property="id" column="teacher_id"/>
+      <result property="subject" column="teacher_subject"/>-->
+    </collection>
+  </resultMap>
+
+  <resultMap id="test" type="teacher">
+    <id property="id" column="teacher_id"/>
+    <result property="subject" column="teacher_subject"/>
   </resultMap>
 
   <select id="getById"
           resultMap="student"
           parameterType="int">
-        SELECT * FROM student where id = #{id}
-   </select>
-
-  <select id="getByIdWithMap"
-          resultType="student"
-          parameterType="int">
-        SELECT * FROM student where id = #{id}
+          select
+          s.id as student_id,
+          s.`name` as student_name,
+          t.id as teacher_id,
+          t.`subject` as teacher_subject
+          from student s
+          left outer join teacher t on s.id = t.student_id
+          where s.id = #{id}
    </select>
 </mapper>
